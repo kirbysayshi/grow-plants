@@ -1,8 +1,9 @@
 {
-  "name": "requirebin-sketch",
+  "name": "plant-sim",
+  "description": "Grow some plants",
   "version": "1.0.0",
   "dependencies": {
-    "arbit": "0.1.1",
-    "pocket-ces": "1.0.1"
+    "pocket-ces": "1.0.1",
+    "arbit": "0.1.1"
   }
 }
