@@ -1,0 +1,8 @@
+{
+  "name": "requirebin-sketch",
+  "version": "1.0.0",
+  "dependencies": {
+    "arbit": "0.1.1",
+    "pocket-ces": "1.0.1"
+  }
+}
