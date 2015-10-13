@@ -5,31 +5,54 @@ var pkt = new Pocket();
 var random = arbit();
 
 var uiHTML = ''
- + '<button onclick="handlePlantSeedClick()">Plant a seed</button>'
- + '<button onclick="handleTickClick()">Walk through the fields</button>'
- + '<button onclick="handleHarvestClick()">Harvest!</button>'
- + '<button onclick="handleNapClick()">Take a relaxing nap</button>'
+ + '<button class="Button" onclick="handlePlantSeedClick()">Plant a seed</button>'
+ + '<button class="Button" onclick="handleTickClick()">Walk through the fields</button>'
+ + '<button class="Button" onclick="handleHarvestClick()">Harvest!</button>'
+ + '<button class="Button" onclick="handleNapClick()">Take a relaxing nap</button>'
  + '<div id="status-pane"></div>'
 document.body.innerHTML = uiHTML;
 
 pkt.cmpType('life', function (cmp, opts) {
-  cmp.age = cmp.age || 1;
+  cmp.age = opts.age || 1;
 })
 
 pkt.cmpType('growth', function (cmp, opts) {
-  cmp.height = cmp.height || 0;
+  cmp.height = opts.height || 0;
 });
 
 pkt.cmpType('bag', function (cmp, opts) {
-  cmp.seeds = cmp.seeds || 1;
+  cmp.seeds = opts.seeds || 1;
+});
+
+pkt.cmpType('status-msg', function (cmp, opts) {
+  cmp.msg = opts.msg || '';
 });
 
 pkt.systemForEach(
   'plants-grow',
 	['life', 'growth'],
 function (pkt, key, life, growth) {
-  growth.height += Math.log(life.age);
+  growth.height += random.nextFloat(0.5, 1) * Math.log(life.age);
   life.age += 1;
+});
+
+pkt.system(
+  'random-accident',
+  ['growth'],
+(pkt, keys, growths) => {
+  let highest = Math.max(...keys.map(k => growths[k].height));
+  let chance = highest >= 100 ? 0.30 : highest >= 50 ? 0.10 : 0.01;
+  let value = random.nextFloat();
+  if (value > chance) return;
+  let percentToDestroy = 0.3;
+  let destroyed = keys.slice(0, Math.ceil(keys.length * percentToDestroy));
+  destroyed.forEach(k => pkt.destroyKey(k));
+  pkt.key({
+    'status-msg': {
+      msg: 'A rampaging beast destroyed '
+      + (percentToDestroy * 100) + '% of your crop!'
+    }
+  });
 });
 
 pkt.systemForEach(
@@ -43,8 +66,24 @@ function (pkt, key, life, growth) {
   if (life.age > 20) {
     bag.seeds += Math.floor(growth.height / life.age);
     pkt.destroyKey(key);
-  } 
+  }
 });
+
+pkt.system(
+  'game-over',
+  [],
+(pkt) => {
+  let bag = pkt.firstData('bag');
+  let keys = pkt.keysMatching('life', 'growth');
+  if (keys.length === 0 && bag.seeds === 0) {
+    pkt.key({
+      'status-msg': {
+        msg: 'You are out of seeds and have no plants. '
+          + 'Sadly you will not survive the winter.'
+      }
+    })
+  }
+})
 
 pkt.system(
   'system-printer',
@@ -66,6 +105,10 @@ function (pkt) {
     }).join('<br>')
   }
   pane.innerHTML += '<p>Your bag has ' + bag.seeds + ' seeds.</p>';
+  var statuses = pkt.indexedData('status-msg');
+  pane.innerHTML += Object.keys(statuses).map(s => {
+    return '<p>' + statuses[s].msg + '</p>'
+  }).join('<br>');
 });
 
 pkt.key({
