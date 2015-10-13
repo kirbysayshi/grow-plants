@@ -1,5 +1,5 @@
-var Pocket = require('pocket-ces');
-var arbit = require('arbit');
+import Pocket from 'pocket-ces';
+import arbit from 'arbit';
 
 var pkt = new Pocket();
 var random = arbit();

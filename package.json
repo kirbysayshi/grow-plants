@@ -2,8 +2,32 @@
   "name": "plant-sim",
   "description": "Grow some plants",
   "version": "1.0.0",
+  "browserify": {
+    "transform": [
+      [
+        "babelify",
+        {
+          "stage": "0",
+          "sourceMapRelative": "true"
+        }
+      ]
+    ]
+  },
+  "scripts": {
+    "js": "browserify -d index.js -o bundle.js",
+    "js-watch": "watchify -d index.js -o bundle.js -v",
+    "css": "cssnext style.css > bundle.css"
+  },
   "dependencies": {
+    "arbit": "0.1.1",
     "pocket-ces": "1.0.1",
-    "arbit": "0.1.1"
+    "suitcss": "^0.6.0",
+    "suitcss-theme": "^0.1.0"
+  },
+  "devDependencies": {
+    "babelify": "^6.3.0",
+    "browserify": "^11.2.0",
+    "cssnext": "^1.8.4",
+    "watchify": "^3.4.0"
   }
 }
