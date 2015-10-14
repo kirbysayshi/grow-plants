@@ -1,10 +1,8 @@
-import Pocket from 'pocket-ces';
 import arbit from 'arbit';
 
-var pkt = new Pocket();
-var random = arbit();
+let random = arbit('grow some plants, friend');
 
-var uiHTML = ''
+let uiHTML = ''
  + '<button class="Button" onclick="handlePlantSeedClick()">Plant a seed</button>'
  + '<button class="Button" onclick="handleTickClick()">Walk through the fields</button>'
  + '<button class="Button" onclick="handleHarvestClick()">Harvest!</button>'
@@ -12,135 +10,205 @@ var uiHTML = ''
  + '<div id="status-pane"></div>'
 document.body.innerHTML = uiHTML;
 
-pkt.cmpType('life', function (cmp, opts) {
-  cmp.age = opts.age || 1;
-})
+// Action Creators
 
-pkt.cmpType('growth', function (cmp, opts) {
-  cmp.height = opts.height || 0;
-});
+const PLANT_SEED = 'PLANT_SEED';
+function plantSeed() { return { type: PLANT_SEED } }
 
-pkt.cmpType('bag', function (cmp, opts) {
-  cmp.seeds = opts.seeds || 1;
-});
+const HARVEST = 'HARVEST'
+function harvest() { return { type: HARVEST } }
 
-pkt.cmpType('status-msg', function (cmp, opts) {
-  cmp.msg = opts.msg || '';
-});
+const TAKE_NAP = 'TAKE_NAP';
+function takeNap() { return { type: TAKE_NAP } }
 
-pkt.systemForEach(
-  'plants-grow',
-	['life', 'growth'],
-function (pkt, key, life, growth) {
-  growth.height += random.nextFloat(0.5, 1) * Math.log(life.age);
-  life.age += 1;
-});
+const GROW = 'GROW';
+function grow() { return { type: GROW } }
 
-pkt.system(
-  'random-accident',
-  ['growth'],
-(pkt, keys, growths) => {
-  let highest = Math.max(...keys.map(k => growths[k].height));
-  let chance = highest >= 100 ? 0.30 : highest >= 50 ? 0.10 : 0.01;
-  let value = random.nextFloat();
-  if (value > chance) return;
-  let percentToDestroy = 0.3;
-  let destroyed = keys.slice(0, Math.ceil(keys.length * percentToDestroy));
-  destroyed.forEach(k => pkt.destroyKey(k));
-  pkt.key({
-    'status-msg': {
-      msg: 'A rampaging beast destroyed '
-      + (percentToDestroy * 100) + '% of your crop!'
+const CHECK_RANDOM_ACCIDENT = 'CHECK_RANDOM_ACCIDENT';
+function checkRandomAccident() { return { type: CHECK_RANDOM_ACCIDENT } }
+
+const CHECK_GAME_OVER = 'CHECK_GAME_OVER';
+function checkGameOver() { return { type: CHECK_GAME_OVER } }
+
+// Async Action Creators
+
+// this is a thunk action. apparently they are allowed to dispatch, I guess
+// because they don't get a chance to mutate state.
+function tick() {
+  return dispatch => {
+    dispatch(grow());
+    dispatch(checkRandomAccident());
+    dispatch(checkGameOver());
+  }
+}
+
+// Store
+
+const initialState = {
+  bag: { seeds: 1 },
+  plants: [],
+  msgs: []
+};
+
+let store = createStore((state, action) => {
+  switch (action.type) {
+
+  case PLANT_SEED: {
+    if (state.bag.seeds === 0) return state;
+    return {
+      ...state,
+      bag: {
+        ...state.bag,
+        seeds: state.bag.seeds - 1
+      },
+      plants: [
+        ...state.plants,
+        { height: 0, age: 1 }
+      ]
     }
-  });
-});
-
-pkt.systemForEach(
-  'plant-harvester',
-	['life', 'growth'],
-function (pkt, key, life, growth) {
-  var shouldHarvest = pkt.keysMatching('cmd:should-harvest');
-  if (!shouldHarvest.length) return;
-  shouldHarvest.forEach(function(key) { pkt.destroyKey(key) });
-  var bag = pkt.firstData('bag');
-  if (life.age > 20) {
-    bag.seeds += Math.floor(growth.height / life.age);
-    pkt.destroyKey(key);
   }
-});
 
-pkt.system(
-  'game-over',
-  [],
-(pkt) => {
-  let bag = pkt.firstData('bag');
-  let keys = pkt.keysMatching('life', 'growth');
-  if (keys.length === 0 && bag.seeds === 0) {
-    pkt.key({
-      'status-msg': {
-        msg: 'You are out of seeds and have no plants. '
-          + 'Sadly you will not survive the winter.'
-      }
-    })
+  case GROW: {
+    return {
+      ...state,
+      plants: state.plants.map(p => {
+        return {
+          height: p.height + random.nextFloat(0.5, 1) * Math.log(p.age),
+          age: p.age += 1
+        }
+      })
+    }
   }
-})
 
-pkt.system(
-  'system-printer',
-	[],
-function (pkt) {
-  var pane = document.querySelector('#status-pane');
-  var bag = pkt.firstData('bag');
-  var lifes = pkt.indexedData('life');
-  var growths = pkt.indexedData('growth');
-  var keys = pkt.keysMatching('life', 'growth');
-  if (!keys.length) {
+  case HARVEST: {
+    let { seeds } = state.bag;
+    let plants = state.plants.filter(p => {
+      seeds += p.age > 20 ? Math.floor(p.height / p.age) : 0;
+      return p.age <= 20;
+    });
+    return {
+      ...state,
+      bag: {
+        ...state.bag,
+        seeds
+      },
+      plants
+    }
+  }
+
+  case CHECK_RANDOM_ACCIDENT: {
+    let highest = Math.max(...state.plants.map(p => p.height));
+    let chance = highest >= 100 ? 0.01 : 0.001;
+    let value = random.nextFloat(); // a side effect, but it's a seeded prng
+    if (value > chance || state.plants.length == 1) return state;
+    let percentToDestroy = 0.1;
+    let notDestroyed = Math.ceil(state.plants.length * percentToDestroy);
+    return {
+      ...state,
+      plants: state.plants.slice(notDestroyed),
+      msgs: [
+        'A rampaging beast destroyed '
+          + (percentToDestroy * 100) + '% of your crop!',
+        ...state.msgs
+      ]
+    }
+  }
+
+  case CHECK_GAME_OVER: {
+    let { plants, bag: { seeds } } = state;
+    if (plants.length > 0 || seeds > 0) return state;
+    return {
+      ...state,
+      msgs: [
+        'You are out of seeds and have no plants. '
+          + 'Sadly you will not survive the winter.',
+        ...state.msgs
+      ]
+    }
+  }
+
+  default:
+    return state;
+  }
+}, initialState);
+
+// Render
+
+let render = () => {
+  let pane = document.querySelector('#status-pane');
+  let { plants, bag: { seeds }, msgs } = store.getState();
+
+  if (plants.length === 0) {
     pane.innerHTML = 'Your fields are empty.';
   } else {
-    pane.innerHTML = keys.map(function(key) {
+    pane.innerHTML = plants.map(p => {
       return '<b>height:</b> '
-      	+ growths[key].height
-      	+ ', <b>age:</b> '
-      	+ lifes[key].age;  
+        + p.height
+        + ', <b>age:</b> '
+        + p.age;
     }).join('<br>')
   }
-  pane.innerHTML += '<p>Your bag has ' + bag.seeds + ' seeds.</p>';
-  var statuses = pkt.indexedData('status-msg');
-  pane.innerHTML += Object.keys(statuses).map(s => {
-    return '<p>' + statuses[s].msg + '</p>'
-  }).join('<br>');
-});
 
-pkt.key({
-  bag: null
-});
+  pane.innerHTML += '<p>Your bag has ' + seeds + ' seeds.</p>';
+  pane.innerHTML += msgs.map(m => {
+    return '<p>' + m + '</p>'
+  }).join('<br>');
+}
+
+store.subscribe(render);
+render(); // Initial render, will use default state.
+
+// Handle User Input
 
 window.handlePlantSeedClick = function (e) {
-  var bag = pkt.firstData('bag');
-  if (bag.seeds > 0) {
-    bag.seeds--;
-    pkt.key({
-      life: null,
-      growth: null
-    });
-    pkt.tick(16);
-  }
+  store.dispatch(plantSeed())
+  store.dispatch(tick());
 }
 
 window.handleHarvestClick = function (e) {
-  var shouldHarvest = pkt.keysMatching('cmd:should-harvest');
-  if (!shouldHarvest.length) {
-  	pkt.key({ 'cmd:should-harvest': null });
-    pkt.tick(16);
-	  pkt.tick(16);
-  }
+  store.dispatch(harvest());
+  store.dispatch(tick());
 }
 
 window.handleTickClick = function (e) {
-  pkt.tick(16);
+  store.dispatch(tick());
 }
 
 window.handleNapClick = function (e) {
-  var count = random.nextInt(1,101);
-  while(count--) pkt.tick(16);
+  let count = random.nextInt(1,50);
+  while(count--) store.dispatch(tick());
+}
+
+
+// Redux
+
+function createStore(reducer, initialState) {
+  let subs = [];
+  let store = { dispatch, subscribe, unsubscribe, getState };
+  let state = initialState;
+  let isDispatching = false;
+
+  function dispatch (action) {
+    // Thunk "middleware" support
+    if (typeof action === 'function') {
+      return action(dispatch, getState);
+    } else {
+      if (isDispatching === true) throw new Error(''
+        + 'Cannot dispatch from within a reducer! '
+        + JSON.stringify(action));
+      try {
+        isDispatching = true;
+        state = reducer(state, action);
+      } finally {
+        isDispatching = false;
+      }
+      subs.slice(0).forEach(s => s());
+    }
+  }
+
+  function getState () { return state; }
+  function subscribe (cb) { subs.push(cb); }
+  function unsubscribe (cb) { subs.splice(subs.indexOf(cb), 1); }
+
+  return store;
 }
