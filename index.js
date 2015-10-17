@@ -191,9 +191,9 @@ window.handleNapClick = function (e) {
 
 // Redux
 
-function createStore(reducer, initialState) {
+function createStore (reducer, initialState) {
   let subs = [];
-  let store = { dispatch, subscribe, unsubscribe, getState };
+  let store = { dispatch, subscribe, getState };
   let state = initialState;
   let isDispatching = false;
 
@@ -212,12 +212,17 @@ function createStore(reducer, initialState) {
         isDispatching = false;
       }
       subs.slice(0).forEach(s => s());
+      return action;
     }
   }
 
   function getState () { return state; }
-  function subscribe (cb) { subs.push(cb); }
-  function unsubscribe (cb) { subs.splice(subs.indexOf(cb), 1); }
+  function subscribe (cb) {
+    subs.push(cb);
+    return function () {
+      subs.splice(subs.indexOf(cb), 1);
+    }
+  }
 
   return store;
 }
