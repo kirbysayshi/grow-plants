@@ -13,7 +13,17 @@ document.body.innerHTML = uiHTML;
 // Action Creators
 
 const PLANT_SEED = 'PLANT_SEED';
-function plantSeed() { return { type: PLANT_SEED } }
+function plantSeedUnsafe () {
+  return { type: PLANT_SEED };
+}
+
+function plantSeed() {
+  return (dispatch, getState) => {
+    if (getState().bag.seeds > 0) {
+      dispatch(plantSeedUnsafe());
+    }
+  }
+}
 
 const HARVEST = 'HARVEST'
 function harvest() { return { type: HARVEST } }
@@ -54,7 +64,6 @@ let store = createStore((state, action) => {
   switch (action.type) {
 
   case PLANT_SEED: {
-    if (state.bag.seeds === 0) return state;
     return {
       ...state,
       bag: {
