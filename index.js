@@ -52,6 +52,14 @@ function tick() {
   }
 }
 
+function removeSeedFromBag () {
+  return (dispatch, getState) => {
+    if (getState().bag.seeds > 0) {
+      dispatch(removeSeedFromBagUnsafe());
+    }
+  }
+}
+
 // Store
 
 const initialState = {
@@ -59,6 +67,34 @@ const initialState = {
   plants: [],
   msgs: []
 };
+
+function bag (bag, action) {
+  if (action.type === PLANT_SEED) {
+    return {
+      ...bag,
+      seeds: bag.seeds - 1
+    }
+  }
+  return bag;
+}
+
+function plants (plants, action) {
+  if (action.type === PLANT_SEED) {
+    return [
+      ...plants,
+      { height: 0, age: 1, emotions: {} }
+    ];
+  }
+  if (action.type === GROW) {
+    return plants.map(p => {
+      return {
+        height: p.height + random.nextFloat(0.5, 1) * Math.log(p.age),
+        age: p.age += 1
+      }
+    });
+  }
+  return plants;
+}
 
 let store = createStore((state, action) => {
   switch (action.type) {
