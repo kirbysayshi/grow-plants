@@ -25,20 +25,35 @@ function plantSeed() {
   }
 }
 
-const HARVEST = 'HARVEST'
-function harvest() { return { type: HARVEST } }
-
 const TAKE_NAP = 'TAKE_NAP';
 function takeNap() { return { type: TAKE_NAP } }
 
 const GROW = 'GROW';
 function grow() { return { type: GROW } }
 
-const CHECK_RANDOM_ACCIDENT = 'CHECK_RANDOM_ACCIDENT';
-function checkRandomAccident() { return { type: CHECK_RANDOM_ACCIDENT } }
+const ADD_SEEDS_TO_BAG = 'ADD_SEEDS_TO_BAG';
+function addSeedsToBag(count) {
+  return {
+    type: ADD_SEEDS_TO_BAG,
+    count
+  }
+}
 
-const CHECK_GAME_OVER = 'CHECK_GAME_OVER';
-function checkGameOver() { return { type: CHECK_GAME_OVER } }
+const REMOVE_PLANTS = 'REMOVE_PLANTS';
+function removePlants (plants) {
+  return {
+    type: REMOVE_PLANTS,
+    plants
+  }
+}
+
+const ADD_MSG = 'ADD_MSG';
+function addMsg (msg) {
+  return {
+    type: ADD_MSG,
+    msg
+  }
+}
 
 // Async Action Creators
 
@@ -52,11 +67,44 @@ function tick() {
   }
 }
 
-function removeSeedFromBag () {
+function harvest () {
   return (dispatch, getState) => {
-    if (getState().bag.seeds > 0) {
-      dispatch(removeSeedFromBagUnsafe());
-    }
+    let { plants } = getState();
+
+    let seedsToAdd = 0;
+    let plantsToRemove = plants.filter(p => {
+      seedsToAdd += p.age > 20 ? Math.floor(p.height / p.age) : 0;
+      return p.age <= 20;
+    });
+
+    dispatch(addSeedsToBag(seedsToAdd));
+    dispatch(removePlants(plantsToRemove));
+  }
+}
+
+function checkRandomAccident() {
+  return (dispatch, getState) => {
+    let state = getState();
+    let highest = Math.max(...state.plants.map(p => p.height));
+    let chance = highest >= 100 ? 0.01 : 0.001;
+    let value = random.nextFloat(); // a side effect, but it's a seeded prng
+    if (value > chance || state.plants.length == 1) return;
+    let percentToDestroy = 0.1;
+    let notDestroyed = Math.ceil(state.plants.length * percentToDestroy);
+
+    dispatch(removePlants(state.plants.slice(0, notDestroyed)));
+    dispatch(addMsg('A rampaging beast destroyed '
+      + (percentToDestroy * 100) + '% of your crop!'));
+  }
+}
+
+function checkGameOver () {
+  return (dispatch, getState) => {
+    let { plants, bag: { seeds } } = getState();
+    if (plants.length > 0 || seeds > 0) return;
+
+    dispatch(addMsg('You are out of seeds and have no plants. '
+      + 'Sadly you will not survive the winter.'));
   }
 }
 
@@ -75,6 +123,14 @@ function bag (bag, action) {
       seeds: bag.seeds - 1
     }
   }
+
+  if (action.type === ADD_SEEDS_TO_BAG) {
+    return {
+      ...bag,
+      seeds: bag.seeds + action.count
+    }
+  }
+
   return bag;
 }
 
@@ -85,6 +141,7 @@ function plants (plants, action) {
       { height: 0, age: 1, emotions: {} }
     ];
   }
+
   if (action.type === GROW) {
     return plants.map(p => {
       return {
@@ -93,89 +150,33 @@ function plants (plants, action) {
       }
     });
   }
+
+  if (action.type === REMOVE_PLANTS) {
+    return plants.filter(p => {
+      return action.plants.indexOf(p) > -1;
+    });
+  }
+
   return plants;
 }
 
-let store = createStore((state, action) => {
-  switch (action.type) {
-
-  case PLANT_SEED: {
-    return {
-      ...state,
-      bag: {
-        ...state.bag,
-        seeds: state.bag.seeds - 1
-      },
-      plants: [
-        ...state.plants,
-        { height: 0, age: 1, emotions: {} }
-      ]
-    }
+function msgs (msgs, action) {
+  if (action.type === ADD_MSG) {
+    return [
+      action.msg,
+      ...msgs
+    ]
   }
+}
 
-  case GROW: {
-    return {
-      ...state,
-      plants: state.plants.map(p => {
-        return {
-          height: p.height + random.nextFloat(0.5, 1) * Math.log(p.age),
-          age: p.age += 1
-        }
-      })
-    }
-  }
-
-  case HARVEST: {
-    let { seeds } = state.bag;
-    let plants = state.plants.filter(p => {
-      seeds += p.age > 20 ? Math.floor(p.height / p.age) : 0;
-      return p.age <= 20;
-    });
-    return {
-      ...state,
-      bag: {
-        ...state.bag,
-        seeds
-      },
-      plants
-    }
-  }
-
-  case CHECK_RANDOM_ACCIDENT: {
-    let highest = Math.max(...state.plants.map(p => p.height));
-    let chance = highest >= 100 ? 0.01 : 0.001;
-    let value = random.nextFloat(); // a side effect, but it's a seeded prng
-    if (value > chance || state.plants.length == 1) return state;
-    let percentToDestroy = 0.1;
-    let notDestroyed = Math.ceil(state.plants.length * percentToDestroy);
-    return {
-      ...state,
-      plants: state.plants.slice(notDestroyed),
-      msgs: [
-        'A rampaging beast destroyed '
-          + (percentToDestroy * 100) + '% of your crop!',
-        ...state.msgs
-      ]
-    }
-  }
-
-  case CHECK_GAME_OVER: {
-    let { plants, bag: { seeds } } = state;
-    if (plants.length > 0 || seeds > 0) return state;
-    return {
-      ...state,
-      msgs: [
-        'You are out of seeds and have no plants. '
-          + 'Sadly you will not survive the winter.',
-        ...state.msgs
-      ]
-    }
-  }
-
-  default:
-    return state;
-  }
-}, initialState);
+let store = createStore(
+  combineReducers({
+    bag,
+    plants,
+    msgs
+  },
+  initialState
+);
 
 // Render
 
