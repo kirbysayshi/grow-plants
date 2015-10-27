@@ -7,4 +7,5 @@ export default function msgs (msgs, action) {
       ...msgs
     ]
   }
+  return msgs;
 }

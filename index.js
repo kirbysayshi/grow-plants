@@ -1,7 +1,7 @@
 import arbit from 'arbit';
 
-import combineReducers from './combine-reducers';
-import createStore from './create-store';
+import combineReducers from './lib/combine-reducers';
+import createStore from './lib/create-store';
 
 import bag from './reducers/bag';
 import msgs from './reducers/msgs';
@@ -28,7 +28,7 @@ const store = createStore(
     bag,
     plants,
     msgs
-  },
+  }),
   initialState
 );
 
